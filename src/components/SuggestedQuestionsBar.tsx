@@ -74,7 +74,7 @@ export const SuggestedQuestionsBar: React.FC<SuggestedQuestionsBarProps> = ({
         </div>
       </div>
       {isOpen && (
-        <div className="bg-[#0E0E0E] border-x border-[#222222] p-2 sm:p-2.5">
+        <div className="bg-[#0E0E0E] border-x border-[#222222] p-2 sm:p-2.5 max-h-[24vh] overflow-y-auto">
           {questions.length === 0 ? (
             <div className="py-2 text-center text-xs text-[#666]">Нет рекомендуемых вопросов</div>
           ) : (

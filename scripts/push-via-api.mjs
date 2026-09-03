@@ -69,7 +69,7 @@ const createdTree = await api('POST', `/repos/${owner}/${repo}/git/trees`, {
   tree,
 });
 const commit = await api('POST', `/repos/${owner}/${repo}/git/commits`, {
-  message: 'Set menu button before polling, add /api/set-menu, retry-friendly launch',
+  message: 'Cap suggested questions panel to ~25vh on mobile so chat stays visible',
   tree: createdTree.sha,
   parents: [parentSha],
 });
