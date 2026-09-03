@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import multer from 'multer';
 import JSZip from 'jszip';
-import { applyMenuButton, startBot, stopBot } from './bot/index';
+import { applyMenuButton, setMenuButtonOnly, startBot, stopBot } from './bot/index';
 import { findResultJson, parseTelegramExportJson } from './ingest/exportParser';
 import {
   downloadPublicChannel,
@@ -180,7 +180,16 @@ app.post('/api/launch', async (req, res) => {
       return;
     }
     runtime.publicUrl = pagesUrl;
-    const started = await startBot(token);
+    let started: { username: string; menuWarning?: string } | null = null;
+    try {
+      started = await startBot(token);
+    } catch (pollErr) {
+      // Polling may fail through a flaky proxy, but the menu button is already set
+      // (startBot sets it before polling). The Mini App still opens via the menu button.
+      const message = pollErr instanceof Error ? pollErr.message : String(pollErr);
+      runtime.botError = message;
+      console.error('[bot] launch: polling failed but menu button was set:', message);
+    }
     await applyMenuButton(pagesUrl);
     const miniAppUrl = /github\.io/i.test(pagesUrl) ? `${pagesUrl}/` : `${pagesUrl}/app`;
     res.json({
@@ -188,12 +197,44 @@ app.post('/api/launch', async (req, res) => {
       publicUrl: pagesUrl,
       miniAppUrl,
       botRunning: runtime.botRunning,
-      botUsername: started.username,
+      botUsername: runtime.botUsername,
       warning: runtime.menuWarning || undefined,
+      botError: runtime.botError || undefined,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const hint = /getMe|Network request|Polling/i.test(message)
+    const hint = /getMe|Network request/i.test(message)
+      ? `${message} Это api.telegram.org. В РФ Bot API часто режется — проверьте TELEGRAM_PROXY в .env.`
+      : message;
+    res.status(400).json({ error: hint });
+  }
+});
+
+app.post('/api/set-menu', async (req, res) => {
+  try {
+    const token = String(req.body?.token || runtime.botToken || '').trim();
+    if (!token) {
+      res.status(400).json({ error: 'Вставьте токен от @BotFather' });
+      return;
+    }
+    const pagesUrl = normalizePagesUrl(
+      String(req.body?.pagesUrl || process.env.GITHUB_PAGES_URL || '')
+    );
+    if (!isValidPagesUrl(pagesUrl)) {
+      res.status(400).json({ error: 'Укажите корректный URL GitHub Pages (https://user.github.io/repo)' });
+      return;
+    }
+    const result = await setMenuButtonOnly(token, pagesUrl);
+    res.json({
+      ok: true,
+      publicUrl: pagesUrl,
+      miniAppUrl: /github\.io/i.test(pagesUrl) ? `${pagesUrl}/` : `${pagesUrl}/app`,
+      botUsername: result.username,
+      warning: result.warning || undefined,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const hint = /getMe|Network request/i.test(message)
       ? `${message} Это api.telegram.org. В РФ Bot API часто режется — проверьте TELEGRAM_PROXY в .env.`
       : message;
     res.status(400).json({ error: hint });

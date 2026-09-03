@@ -26,6 +26,7 @@ async function trySetMenuButton(instance: Bot): Promise<string | undefined> {
     await instance.api.setChatMenuButton({
       menu_button: { type: 'web_app', text: 'Чат', web_app: { url } },
     });
+    console.log('[bot] menu button set:', url);
     return undefined;
   } catch (err) {
     console.warn('[bot] setChatMenuButton skipped:', errText(err));
@@ -77,6 +78,10 @@ export async function startBot(token: string): Promise<{ username: string; menuW
   runtime.botUsername = me.username || me.first_name;
   console.log('[bot] getMe ok @' + runtime.botUsername);
 
+  // Set the menu button BEFORE polling so it updates even if long-poll fails.
+  const menuWarning = await trySetMenuButton(instance);
+  runtime.menuWarning = menuWarning || '';
+
   instance.catch((err) => {
     if (!stopping) console.error('[bot]', err);
   });
@@ -119,8 +124,6 @@ export async function startBot(token: string): Promise<{ username: string; menuW
   });
 
   saveLaunch(runtime.botToken, runtime.publicUrl);
-  const menuWarning = await trySetMenuButton(instance);
-  runtime.menuWarning = menuWarning || '';
   return { username: runtime.botUsername, menuWarning };
 }
 
@@ -130,4 +133,26 @@ export async function applyMenuButton(publicUrl: string): Promise<string | undef
   const warning = await trySetMenuButton(bot);
   runtime.menuWarning = warning || '';
   return warning;
+}
+
+/** Set the bot menu button without starting polling. Used to fix a stale menu button
+ *  (e.g. a dead trycloudflare URL) even when long-polling can't reach Telegram. */
+export async function setMenuButtonOnly(token: string, publicUrl: string): Promise<{ username: string; warning?: string }> {
+  runtime.botToken = token.trim();
+  runtime.publicUrl = publicUrl.replace(/\/$/, '');
+  const clientOpts = grammyClientOptions();
+  const instance = new Bot(runtime.botToken, clientOpts ? { client: clientOpts } : {});
+  // setChatMenuButton first — it's a quick call (like deleteWebhook) and the whole point.
+  const warning = await trySetMenuButton(instance);
+  runtime.menuWarning = warning || '';
+  // getMe is best-effort only (for the username display); don't fail if the proxy flakes.
+  let username = '';
+  try {
+    const me = await instance.api.getMe();
+    username = me.username || me.first_name;
+    runtime.botUsername = username;
+  } catch {
+    /* ignore — menu button is what matters */
+  }
+  return { username, warning };
 }

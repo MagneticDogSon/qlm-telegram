@@ -69,7 +69,7 @@ const createdTree = await api('POST', `/repos/${owner}/${repo}/git/trees`, {
   tree,
 });
 const commit = await api('POST', `/repos/${owner}/${repo}/git/commits`, {
-  message: 'Drop Cloudflare tunnel, harden bot launch, add stop button and bot username',
+  message: 'Set menu button before polling, add /api/set-menu, retry-friendly launch',
   tree: createdTree.sha,
   parents: [parentSha],
 });

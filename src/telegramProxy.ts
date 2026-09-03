@@ -57,6 +57,7 @@ export function grammyClientOptions():
         compress: boolean;
         duplex: 'half';
       };
+      timeoutSeconds: number;
     }
   | undefined {
   const url = telegramProxyUrl();
@@ -67,6 +68,7 @@ export function grammyClientOptions():
       duplex: 'half' as const,
       agent: new HttpsProxyAgent(url),
     },
+    timeoutSeconds: 20,
   };
 }
 
