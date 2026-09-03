@@ -1,0 +1,153 @@
+@import "tailwindcss";
+
+html, body, #root {
+  height: 100%;
+}
+
+@layer base {
+  :root, [data-theme="crimson"] {
+    --color-accent: #DC143C;
+    --color-accent-hover: #F0224D;
+    --color-accent-rgb: 220, 20, 60;
+    --color-accent-soft: rgba(220, 20, 60, 0.12);
+    --color-accent-border: rgba(220, 20, 60, 0.38);
+    --color-accent-glow: rgba(220, 20, 60, 0.45);
+    --color-accent-text: #FF708C;
+    --color-accent-dark: #220a10;
+  }
+
+  [data-theme="emerald"] {
+    --color-accent: #22C55E;
+    --color-accent-hover: #16A34A;
+    --color-accent-rgb: 34, 197, 94;
+    --color-accent-soft: rgba(34, 197, 94, 0.12);
+    --color-accent-border: rgba(34, 197, 94, 0.38);
+    --color-accent-glow: rgba(34, 197, 94, 0.45);
+    --color-accent-text: #86EFAC;
+    --color-accent-dark: #092112;
+  }
+
+  [data-theme="cyan"] {
+    --color-accent: #06B6D4;
+    --color-accent-hover: #0891B2;
+    --color-accent-rgb: 6, 182, 212;
+    --color-accent-soft: rgba(6, 182, 212, 0.12);
+    --color-accent-border: rgba(6, 182, 212, 0.38);
+    --color-accent-glow: rgba(6, 182, 212, 0.45);
+    --color-accent-text: #67E8F9;
+    --color-accent-dark: #082026;
+  }
+
+  [data-theme="amber"] {
+    --color-accent: #F59E0B;
+    --color-accent-hover: #D97706;
+    --color-accent-rgb: 245, 158, 11;
+    --color-accent-soft: rgba(245, 158, 11, 0.12);
+    --color-accent-border: rgba(245, 158, 11, 0.38);
+    --color-accent-glow: rgba(245, 158, 11, 0.45);
+    --color-accent-text: #FCD34D;
+    --color-accent-dark: #291b07;
+  }
+
+  [data-theme="purple"] {
+    --color-accent: #A855F7;
+    --color-accent-hover: #9333EA;
+    --color-accent-rgb: 168, 85, 247;
+    --color-accent-soft: rgba(168, 85, 247, 0.12);
+    --color-accent-border: rgba(168, 85, 247, 0.38);
+    --color-accent-glow: rgba(168, 85, 247, 0.45);
+    --color-accent-text: #D8B4FE;
+    --color-accent-dark: #210d33;
+  }
+
+  [data-theme="monochrome"] {
+    --color-accent: #E2E8F0;
+    --color-accent-hover: #FFFFFF;
+    --color-accent-rgb: 226, 232, 240;
+    --color-accent-soft: rgba(255, 255, 255, 0.10);
+    --color-accent-border: rgba(255, 255, 255, 0.28);
+    --color-accent-glow: rgba(255, 255, 255, 0.3);
+    --color-accent-text: #F8FAFC;
+    --color-accent-dark: #1E2024;
+  }
+
+  * {
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'Berkeley Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  }
+
+  body {
+    background-color: #0D0D0D;
+    color: #D1D1D1;
+  }
+
+  ::selection {
+    background-color: var(--color-accent);
+    color: #FFFFFF;
+  }
+}
+
+.text-accent {
+  color: var(--color-accent);
+}
+
+.text-accent-light {
+  color: var(--color-accent-text);
+}
+
+.bg-accent {
+  background-color: var(--color-accent);
+}
+
+.bg-accent-hover:hover {
+  background-color: var(--color-accent-hover);
+}
+
+.bg-accent-soft {
+  background-color: var(--color-accent-soft);
+}
+
+.bg-accent-dark {
+  background-color: var(--color-accent-dark);
+}
+
+.border-accent {
+  border-color: var(--color-accent-border);
+}
+
+.border-accent-strong {
+  border-color: var(--color-accent);
+}
+
+.shadow-accent {
+  box-shadow: 0 0 15px var(--color-accent-glow);
+}
+
+/* Custom scrollbar matching dark minimalism */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #222222;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #333333;
+}
+
+/* Cursor pulse animation */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-terminal-cursor {
+  animation: blink 1s step-end infinite;
+}
+
