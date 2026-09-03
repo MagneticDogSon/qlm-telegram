@@ -18,8 +18,7 @@ import {
   submitGramPassword,
 } from './ingest/gramjsDownload';
 import { channelDumpToQlm } from './qlm/fromChannel';
-import { loadPersisted, persistBuilt, publicStatus, runtime, zipPath } from './store';
-import { restoreTunnel, startCloudflareTunnel, stopTunnel } from './tunnel';
+import { clearLaunch, loadLaunch, loadPersisted, persistBuilt, publicStatus, runtime, zipPath } from './store';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -146,6 +145,16 @@ app.post('/api/telegram/download', async (req, res) => {
   }
 });
 
+function normalizePagesUrl(raw: string): string {
+  const url = raw.trim().replace(/\/$/, '');
+  if (!url) return '';
+  return url;
+}
+
+function isValidPagesUrl(url: string): boolean {
+  return /^https:\/\/[a-z0-9-]+\.github\.io\/[a-z0-9_.-]+$/i.test(url);
+}
+
 app.post('/api/launch', async (req, res) => {
   try {
     const token = String(req.body?.token || runtime.botToken || '').trim();
@@ -157,24 +166,26 @@ app.post('/api/launch', async (req, res) => {
       res.status(400).json({ error: 'Сначала импортируйте канал' });
       return;
     }
-    const pagesUrl = String(
-      req.body?.pagesUrl || process.env.GITHUB_PAGES_URL || ''
-    )
-      .trim()
-      .replace(/\/$/, '');
-    let publicUrl = pagesUrl;
-    if (!publicUrl) {
-      const tunnelUrl = await startCloudflareTunnel(PORT);
-      runtime.tunnelUrl = tunnelUrl;
-      publicUrl = tunnelUrl;
+    const pagesUrl = normalizePagesUrl(
+      String(req.body?.pagesUrl || process.env.GITHUB_PAGES_URL || '')
+    );
+    if (!pagesUrl) {
+      res.status(400).json({ error: 'Укажите URL GitHub Pages (https://user.github.io/repo)' });
+      return;
     }
-    runtime.publicUrl = publicUrl;
+    if (!isValidPagesUrl(pagesUrl)) {
+      res.status(400).json({
+        error: 'URL должен быть вида https://user.github.io/repo. Cloudflare-туннели больше не поддерживаются.',
+      });
+      return;
+    }
+    runtime.publicUrl = pagesUrl;
     const started = await startBot(token);
-    await applyMenuButton(publicUrl);
-    const miniAppUrl = /github\.io/i.test(publicUrl) ? `${publicUrl}/` : `${publicUrl}/app`;
+    await applyMenuButton(pagesUrl);
+    const miniAppUrl = /github\.io/i.test(pagesUrl) ? `${pagesUrl}/` : `${pagesUrl}/app`;
     res.json({
       ok: true,
-      publicUrl,
+      publicUrl: pagesUrl,
       miniAppUrl,
       botRunning: runtime.botRunning,
       botUsername: started.username,
@@ -182,8 +193,8 @@ app.post('/api/launch', async (req, res) => {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const hint = /getMe|Network request/i.test(message)
-      ? `${message} Это api.telegram.org, не Cloudflare. В РФ Bot API часто режется — проверьте TELEGRAM_PROXY в .env.`
+    const hint = /getMe|Network request|Polling/i.test(message)
+      ? `${message} Это api.telegram.org. В РФ Bot API часто режется — проверьте TELEGRAM_PROXY в .env.`
       : message;
     res.status(400).json({ error: hint });
   }
@@ -191,9 +202,10 @@ app.post('/api/launch', async (req, res) => {
 
 app.post('/api/stop', async (_req, res) => {
   await stopBot();
-  await stopTunnel();
-  runtime.tunnelUrl = '';
+  clearLaunch();
   runtime.publicUrl = '';
+  runtime.menuWarning = '';
+  runtime.botError = '';
   res.json({ ok: true });
 });
 
@@ -238,14 +250,19 @@ if (devUi) {
 await loadPersisted();
 if (process.env.GITHUB_PAGES_URL) {
   runtime.publicUrl = process.env.GITHUB_PAGES_URL.replace(/\/$/, '');
-} else {
-  const restored = await restoreTunnel();
-  if (restored) {
-    runtime.tunnelUrl = restored;
-    runtime.publicUrl = restored;
-  }
 }
 
 app.listen(PORT, () => {
   console.log(`QLM Telegram API http://127.0.0.1:${PORT}`);
 });
+
+const savedLaunch = loadLaunch();
+if (savedLaunch?.token) {
+  if (savedLaunch.publicUrl) runtime.publicUrl = savedLaunch.publicUrl;
+  try {
+    await startBot(savedLaunch.token);
+    if (runtime.publicUrl) await applyMenuButton(runtime.publicUrl);
+  } catch (err) {
+    console.error('[bot] restore failed:', err instanceof Error ? err.message : err);
+  }
+}

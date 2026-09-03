@@ -28,9 +28,7 @@ async function api(method, pathname, body) {
   });
   const text = await res.text();
   const data = text ? JSON.parse(text) : {};
-  if (!res.ok) {
-    throw new Error(`${method} ${pathname} ${res.status}: ${data.message || text}`);
-  }
+  if (!res.ok) throw new Error(`${method} ${pathname} ${res.status}: ${data.message || text}`);
   return data;
 }
 
@@ -49,20 +47,10 @@ function walk(dir, out = []) {
 const files = walk(root);
 console.log(`files: ${files.length}`);
 
-let parent;
-try {
-  const ref = await api('GET', `/repos/${owner}/${repo}/git/ref/heads/${branch}`);
-  parent = ref.object.sha;
-} catch {
-  const readme = fs.readFileSync(path.join(root, 'README.md'));
-  const created = await api('PUT', `/repos/${owner}/${repo}/contents/README.md`, {
-    message: 'seed',
-    content: readme.toString('base64'),
-    branch,
-  });
-  parent = created.commit.sha;
-  console.log('seeded', parent);
-}
+const ref = await api('GET', `/repos/${owner}/${repo}/git/ref/heads/${branch}`);
+const parentSha = ref.object.sha;
+const parentCommit = await api('GET', `/repos/${owner}/${repo}/git/commits/${parentSha}`);
+const baseTreeSha = parentCommit.tree.sha;
 
 const tree = [];
 for (const file of files) {
@@ -76,14 +64,16 @@ for (const file of files) {
 }
 console.log('\nblobs ok');
 
-const createdTree = await api('POST', `/repos/${owner}/${repo}/git/trees`, { tree });
+const createdTree = await api('POST', `/repos/${owner}/${repo}/git/trees`, {
+  base_tree: baseTreeSha,
+  tree,
+});
 const commit = await api('POST', `/repos/${owner}/${repo}/git/commits`, {
-  message: 'Publish Mini App on GitHub Pages so Telegram gets HTTPS without Cloudflare.',
+  message: 'Drop Cloudflare tunnel, harden bot launch, add stop button and bot username',
   tree: createdTree.sha,
-  parents: [parent],
+  parents: [parentSha],
 });
 await api('PATCH', `/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
   sha: commit.sha,
-  force: true,
 });
 console.log('pushed', commit.sha);

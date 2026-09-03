@@ -38,7 +38,6 @@ export default defineConfig({
       ignored: [
         '**/src/server.ts',
         '**/src/bot/**',
-        '**/src/tunnel.ts',
         '**/src/loadEnv.ts',
         '**/src/telegramProxy.ts',
         '**/src/store.ts',

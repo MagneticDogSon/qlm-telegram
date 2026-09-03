@@ -1,14 +1,14 @@
 import '../loadEnv';
 import { Bot, InlineKeyboard } from 'grammy';
 import { answerFromFaq } from '../engine/matchFaq';
-import { runtime } from '../store';
+import { saveLaunch, runtime } from '../store';
 import { grammyClientOptions, telegramProxyHost } from '../telegramProxy';
 
 let bot: Bot | null = null;
 let stopping = false;
 
 function miniAppUrl(): string | null {
-  const base = (runtime.publicUrl || runtime.tunnelUrl || '').replace(/\/$/, '');
+  const base = (runtime.publicUrl || '').replace(/\/$/, '');
   if (!base) return null;
   if (/github\.io/i.test(base)) return `${base}/`;
   return `${base}/app`;
@@ -50,6 +50,7 @@ export async function startBot(token: string): Promise<{ username: string; menuW
   await stopBot();
   runtime.botToken = token.trim();
   runtime.menuWarning = '';
+  runtime.botError = '';
   const clientOpts = grammyClientOptions();
   console.log('[bot] Telegram proxy:', telegramProxyHost() || 'off');
   const instance = new Bot(runtime.botToken, clientOpts ? { client: clientOpts } : {});
@@ -73,21 +74,54 @@ export async function startBot(token: string): Promise<{ username: string; menuW
   });
 
   const me = await instance.api.getMe();
+  runtime.botUsername = me.username || me.first_name;
+  console.log('[bot] getMe ok @' + runtime.botUsername);
 
   instance.catch((err) => {
     if (!stopping) console.error('[bot]', err);
   });
 
-  void instance.start({
-    onStart: () => {
-      runtime.botRunning = true;
-    },
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const fail = (err: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      runtime.botRunning = false;
+      runtime.botError = err.message;
+      reject(err);
+    };
+    const timer = setTimeout(() => {
+      void instance.stop().catch(() => undefined);
+      fail(
+        new Error(
+          'Polling не стартовал за 25 с (deleteWebhook/getUpdates). Проверьте TELEGRAM_PROXY — getMe мог пройти, а long poll нет.'
+        )
+      );
+    }, 25000);
+    void instance
+      .start({
+        onStart: () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          runtime.botRunning = true;
+          runtime.botError = '';
+          console.log('[bot] polling');
+          resolve();
+        },
+      })
+      .catch((err) => {
+        if (stopping) return;
+        console.error('[bot] polling stopped:', errText(err));
+        fail(err instanceof Error ? err : new Error(errText(err)));
+      });
   });
 
-  await new Promise((r) => setTimeout(r, 500));
+  saveLaunch(runtime.botToken, runtime.publicUrl);
   const menuWarning = await trySetMenuButton(instance);
   runtime.menuWarning = menuWarning || '';
-  return { username: me.username || me.first_name, menuWarning };
+  return { username: runtime.botUsername, menuWarning };
 }
 
 export async function applyMenuButton(publicUrl: string): Promise<string | undefined> {

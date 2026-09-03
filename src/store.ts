@@ -14,11 +14,12 @@ export interface RuntimeState {
   botToken: string;
   publicUrl: string;
   botRunning: boolean;
-  tunnelUrl: string;
+  botUsername: string;
   truncated: boolean;
   faqCount: number;
   title: string;
   menuWarning: string;
+  botError: string;
 }
 
 export const runtime: RuntimeState = {
@@ -26,11 +27,12 @@ export const runtime: RuntimeState = {
   botToken: '',
   publicUrl: '',
   botRunning: false,
-  tunnelUrl: '',
+  botUsername: '',
   truncated: false,
   faqCount: 0,
   title: '',
   menuWarning: '',
+  botError: '',
 };
 
 export function ensureDataDir() {
@@ -84,12 +86,41 @@ export function publicStatus() {
     faqCount: runtime.faqCount,
     truncated: runtime.truncated,
     botRunning: runtime.botRunning,
-    tunnelUrl: runtime.tunnelUrl,
+    botUsername: runtime.botUsername,
     publicUrl: runtime.publicUrl,
     hasPackage: Boolean(runtime.context),
     hasToken: Boolean(runtime.botToken),
     menuWarning: runtime.menuWarning,
+    botError: runtime.botError,
     proxy: telegramProxyHost() || null,
     pagesUrl: process.env.GITHUB_PAGES_URL || '',
   };
+}
+
+const LAUNCH_FILE = path.join(DATA_DIR, 'launch.json');
+
+export function saveLaunch(token: string, publicUrl: string) {
+  ensureDataDir();
+  fs.writeFileSync(LAUNCH_FILE, JSON.stringify({ token, publicUrl }), 'utf8');
+}
+
+export function loadLaunch(): { token: string; publicUrl: string } | null {
+  try {
+    if (!fs.existsSync(LAUNCH_FILE)) return null;
+    const data = JSON.parse(fs.readFileSync(LAUNCH_FILE, 'utf8')) as { token?: string; publicUrl?: string };
+    if (!data.token) return null;
+    const url = (data.publicUrl || '').replace(/\/$/, '');
+    if (url && !/^https:\/\/[a-z0-9-]+\.github\.io\//i.test(url)) return null;
+    return { token: data.token, publicUrl: url };
+  } catch {
+    return null;
+  }
+}
+
+export function clearLaunch() {
+  try {
+    if (fs.existsSync(LAUNCH_FILE)) fs.unlinkSync(LAUNCH_FILE);
+  } catch {
+    /* ignore */
+  }
 }

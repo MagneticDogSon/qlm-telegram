@@ -7,11 +7,12 @@ interface StatusPayload {
   faqCount: number;
   truncated: boolean;
   botRunning: boolean;
-  tunnelUrl: string;
+  botUsername: string;
   publicUrl: string;
   hasPackage: boolean;
   hasToken: boolean;
   menuWarning?: string;
+  botError?: string;
   proxy?: string | null;
   pagesUrl?: string;
   gram: { status: string; error?: string };
@@ -24,6 +25,10 @@ async function parseError(res: Response): Promise<string> {
   } catch {
     return res.statusText;
   }
+}
+
+function isValidPagesUrl(url: string): boolean {
+  return /^https:\/\/[a-z0-9-]+\.github\.io\/[a-z0-9_.-]+$/i.test(url.trim().replace(/\/$/, ''));
 }
 
 export const WizardApp: React.FC = () => {
@@ -143,12 +148,16 @@ export const WizardApp: React.FC = () => {
 
   const launch = async () => {
     setError('');
+    if (!isValidPagesUrl(pagesUrl)) {
+      setError('URL должен быть вида https://user.github.io/repo');
+      return;
+    }
     setBusy('Бот и GitHub Pages…');
     try {
       const res = await fetch('/api/launch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, pagesUrl }),
+        body: JSON.stringify({ token, pagesUrl: pagesUrl.replace(/\/$/, '') }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || res.statusText);
@@ -156,6 +165,16 @@ export const WizardApp: React.FC = () => {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const stop = async () => {
+    setBusy('Остановка…');
+    try {
+      await fetch('/api/stop', { method: 'POST' });
+      await refresh();
     } finally {
       setBusy('');
     }
@@ -171,6 +190,7 @@ export const WizardApp: React.FC = () => {
           <h1 className="text-2xl text-white font-bold mt-1">Канал → .qlm → Mini App</h1>
           <p className="text-xs text-[#888] mt-2 leading-relaxed">
             Три шага: история канала, токен @BotFather, запуск. Чат как в основном QLM, ответы только из FAQ, без LLM.
+            Mini App хостится на GitHub Pages — Cloudflare не нужен.
           </p>
         </header>
 
@@ -280,7 +300,7 @@ export const WizardApp: React.FC = () => {
             className="w-full bg-[#0D0D0D] border border-[#333] rounded-sm px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-accent-border)]"
           />
           <p className="text-[10px] text-[#666] leading-relaxed">
-            Mini App хостится на GitHub Pages (HTTPS), без Cloudflare. Бот только открывает эту ссылку. Прокси Bot API:{' '}
+            Mini App хостится на GitHub Pages (HTTPS). Бот только открывает эту ссылку. Прокси Bot API:{' '}
             {status?.proxy || 'выкл'}.
           </p>
           <input
@@ -289,20 +309,30 @@ export const WizardApp: React.FC = () => {
             placeholder="https://user.github.io/qlm-telegram"
             className="w-full bg-[#0D0D0D] border border-[#333] rounded-sm px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-accent-border)]"
           />
-          <button
-            type="button"
-            disabled={Boolean(busy) || !status?.hasPackage}
-            onClick={() => void launch()}
-            className="w-full py-2.5 rounded-sm bg-[var(--color-accent)] text-white text-sm font-bold disabled:opacity-40 cursor-pointer"
-          >
-            {busy || 'Запустить Mini App'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={Boolean(busy) || !status?.hasPackage}
+              onClick={() => void launch()}
+              className="flex-1 py-2.5 rounded-sm bg-[var(--color-accent)] text-white text-sm font-bold disabled:opacity-40 cursor-pointer"
+            >
+              {busy || 'Запустить Mini App'}
+            </button>
+            <button
+              type="button"
+              disabled={Boolean(busy) || !status?.botRunning}
+              onClick={() => void stop()}
+              className="px-4 py-2.5 rounded-sm border border-[#333] text-sm text-[#AAA] hover:border-[#EF4444]/40 hover:text-[#F87171] disabled:opacity-30 cursor-pointer"
+            >
+              Стоп
+            </button>
+          </div>
           {status?.publicUrl && (
             <div className="text-xs text-[#AAA] space-y-1">
               <div>
                 Mini App:{' '}
                 <a
-                  className="text-[var(--color-accent-text)] underline"
+                  className="text-[var(--color-accent-text)] underline break-all"
                   href={/github\.io/i.test(status.publicUrl) ? status.publicUrl : `${status.publicUrl}/app`}
                   target="_blank"
                   rel="noreferrer"
@@ -310,7 +340,10 @@ export const WizardApp: React.FC = () => {
                   {/github\.io/i.test(status.publicUrl) ? status.publicUrl : `${status.publicUrl}/app`}
                 </a>
               </div>
-              <div>Бот: {status.botRunning ? 'polling' : 'остановлен'}</div>
+              <div>
+                Бот: {status.botRunning ? 'polling' : 'остановлен'}
+                {status.botUsername ? ` @${status.botUsername}` : ''}
+              </div>
             </div>
           )}
         </section>
@@ -320,6 +353,9 @@ export const WizardApp: React.FC = () => {
         )}
         {status?.menuWarning && !warning && (
           <div className="text-xs text-[#FCD34D] border border-[#F59E0B]/40 bg-[#291b07] p-3 rounded-sm">{status.menuWarning}</div>
+        )}
+        {status?.botError && !status.botRunning && (
+          <div className="text-xs text-[#F87171] border border-[#EF4444]/40 bg-[#220c10] p-3 rounded-sm">{status.botError}</div>
         )}
 
         {error && <div className="text-xs text-[#F87171] border border-[#EF4444]/40 bg-[#220c10] p-3 rounded-sm">{error}</div>}

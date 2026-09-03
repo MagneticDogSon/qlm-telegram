@@ -62,7 +62,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         <PlexusRingAnimation
           modelName={
             fileContext?.faq?.title?.trim() ||
-            fileContext?.content.match(/^#\s+(.+)$/m)?.[1]?.trim() ||
+            fileContext?.content?.match(/^#\s+(.+)$/m)?.[1]?.trim() ||
             fileContext?.name.replace(/\.(qlm|qwen|zip)$/i, '') ||
             'Нет документа'
           }
